@@ -50,21 +50,21 @@ int main(int argc, char** argv) {
             }
             params.class_name = argv[++arg];
         }
-        else if (is_any_of(argv[arg], "--result_name", "-r")) {
+        else if (is_any_of(argv[arg], "--result-name", "-r")) {
             if (arg+1 >= argc) {
                 std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
                 return 1;
             }
             params.result_name = argv[++arg];
         }
-        else if (is_any_of(argv[arg], "--parent_class", "-p")) {
+        else if (is_any_of(argv[arg], "--parent-class", "-p")) {
             if (arg+1 >= argc) {
                 std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
                 return 1;
             }
             params.parent_class_name = argv[++arg];
         }
-        else if (is_any_of(argv[arg], "--function_name", "-f")) {
+        else if (is_any_of(argv[arg], "--function-name", "-f")) {
             if (arg+1 >= argc) {
                 std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
                 return 1;
