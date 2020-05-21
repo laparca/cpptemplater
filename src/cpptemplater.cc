@@ -1,48 +1,10 @@
 //#include <fstream>
 #include <iostream>
+#include <cpptemplater.hh>
 
-enum parser_status {
-    START,
-    NOT_PARSING,
-    PARSING_FILE,
-    PARSING_CODE,
-    END
-};
-
-enum block_type_t {
-    BEGIN_BLOCK,
-    END_BLOCK,
-    NORMAL_BLOCK,
-    EXPRESSION_BLOCK
-};
-
-#include <optional>
-#include <vector>
-struct templater_parameters {
-    std::optional<std::string> result_namespace;
-    std::string result_name = std::string("result");
-    bool function_override = false;
-    std::optional<std::string> class_name;
-    std::optional<std::string> parent_class_name;
-    std::string function_name = std::string("render");
-    std::vector<std::string> includes;
-};
-
-template<class IStream, class OnOk, class OnError>
-bool read_one(IStream& input, OnOk on_ok, OnError on_error) {
-    using traits_type = typename IStream::traits_type;
-    using char_type = typename IStream::char_type;
-
-    auto ch = input.get();
-    if (ch == traits_type::eof()) return on_error(input);
-
-    return on_ok(input, (char_type)ch);
-}
-
-template<class IStream, class OnOk, class OnError>
-void until_eof_read_one(IStream& input, OnOk on_ok, OnError on_error) {
-    while(read_one(input, on_ok, on_error))
-        ;
+template<class... Args>
+constexpr bool is_any_of(std::string_view const& arg, Args&&... values) {
+    return ((arg == values) || ... || false);
 }
 
 template<class OStream>
@@ -111,117 +73,55 @@ bool parse_template(IStream& input, OStream& out, const templater_parameters& pa
         /* error */
     }
 
-    switch(ch) {
-        case 'b': block_type = BEGIN_BLOCK; break;
-        case 'e': block_type = END_BLOCK; break;
-        case '!': block_type = EXPRESSION_BLOCK; break;
-        default: block_type = NORMAL_BLOCK; break;
-    }
-
-    while ((ch = input.get()) != traits_type::eof()) {
-        if (ch == '%') {
-            auto ch_next = input.get();
-            if (ch_next != traits_type::eof()) {
-                if (ch_next == '>')
-                    break;
-                else
-                    input.unget();
-            }
-            else {
-                break;
-            }
-        }
-
-        if (status == START && block_type != BEGIN_BLOCK) 
-            prepare_top(out, params);
-
-        if (status == PARSING_FILE) {
-            if (block_type == EXPRESSION_BLOCK)
-                out << "\" << (";
-            else {
-                out << "\";" << std::endl;
-                if (block_type == END_BLOCK)
-                    prepare_bottom(out, params);
-            }
-        }
-
-        status = PARSING_CODE;
-
-        out.put(ch);
-    }
-
-    switch(block_type) {
-        case BEGIN_BLOCK:
-            status = START;
-            break;
-        case END_BLOCK:
-            status = END;
-            break;
-        case EXPRESSION_BLOCK:
-            status = PARSING_FILE;
-            out << ") << \"";
-            break;
-        case NORMAL_BLOCK:
-            status = NOT_PARSING;
-            break;
-    }
-
-    return true;
-}
-
-template<class IStream, class OStream>
-void parse_file(IStream& input, OStream& out, const templater_parameters& params) {
-    using traits_type = typename IStream::traits_type;
-    using char_type = typename IStream::char_type;
-    parser_status status = START;
-
-    until_eof_read_one(input,
-            [&out,&status,&params](IStream& input, char_type ch){
-                if (ch != '<' || !parse_template(input, out, params, status)) {
-                    if (status == START) {
-                        prepare_top(out, params);
-                    }
-                    if (status == START || status == NOT_PARSING) {
-                        out << "result << \"";
-                    }
-                    status = PARSING_FILE;
-
-                    switch (ch) {
-                    case '"':
-                        out << "\\" << ch;
-                        break;
-                    case '\r':
-                        out << "\\r";
-                        break;
-                    case '\n':
-                        out << "\\n";
-                        break;
-                    case '\t':
-                        out << "\\t";
-                        break;
-                    default:
-                        out.put(ch);
-                    }
-                }
-
-                return true;
-            },
-            [](IStream&){return false;});
-
-    if (status == START)
-        prepare_top(out, params);
-    if (status != END) {
-        if (status == PARSING_FILE) {
-            out << "\";" << std::endl;
-        }
-        prepare_bottom(out, params);
-    }
-}
-
 int main(int argc, char** argv) {
-    templater_parameters params;
-    params.class_name = "MainPage";
-    params.result_namespace = "web::pages";
-    parse_file(std::cin, std::cout, params);
+    lzcoders::templater::templater_parameters params;
+
+    for (int arg = 1; arg < argc; ++arg) {
+        if (is_any_of(argv[arg], "--namespace", "-n")) {
+            if (arg+1 >= argc) {
+                std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
+                return 1;
+            }
+            params.result_namespace = argv[++arg];
+        }
+        else if (is_any_of(argv[arg], "--class", "-c")) {
+            if (arg+1 >= argc) {
+                std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
+                return 1;
+            }
+            params.class_name = argv[++arg];
+        }
+        else if (is_any_of(argv[arg], "--result_name", "-r")) {
+            if (arg+1 >= argc) {
+                std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
+                return 1;
+            }
+            params.result_name = argv[++arg];
+        }
+        else if (is_any_of(argv[arg], "--parent_class", "-p")) {
+            if (arg+1 >= argc) {
+                std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
+                return 1;
+            }
+            params.parent_class_name = argv[++arg];
+        }
+        else if (is_any_of(argv[arg], "--function_name", "-f")) {
+            if (arg+1 >= argc) {
+                std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
+                return 1;
+            }
+            params.function_name = argv[++arg];
+        }
+        else if (is_any_of(argv[arg], "--include", "-i")) {
+            if (arg+1 >= argc) {
+                std::cerr << "Parameter " << argv[arg] << " reqires one argument." << std::endl;
+                return 1;
+            }
+            params.includes.push_back(std::string(argv[++arg]));
+        }
+
+    }
+
+    lzcoders::templater::parse_file(std::cin, std::cout, params);
     return 0;
 }
