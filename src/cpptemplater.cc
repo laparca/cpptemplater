@@ -1,77 +1,36 @@
 //#include <fstream>
 #include <iostream>
 #include <cpptemplater.hh>
+#include <string_view>
+#include <tuple>
 
 template<class... Args>
 constexpr bool is_any_of(std::string_view const& arg, Args&&... values) {
     return ((arg == values) || ... || false);
 }
 
-template<class OStream>
-void prepare_top(OStream& out, const templater_parameters& params) {
-    for(auto& include : params.includes) {
-        out << "#include <" << include << ">" << std::endl;
-    }
+struct is_any_of_h {
+    std::string_view const& arg_;
 
-    if (params.result_namespace) {
-        out << "namespace " << params.result_namespace.value() << " {" << std::endl;
-    }
+    constexpr is_any_of_h(std::string_view const& arg) : arg_(arg) {}
 
-    if (params.class_name) {
-        out << "class " << params.class_name.value();
-        if (params.parent_class_name) {
-            out << " : public " << params.parent_class_name.value();
+    template<class... Args>
+    bool operator()(Args&&... values) {
+        return is_any_of(arg_, std::forward<Args>(values)...);
+    }
+};
+
+template<class Base, class Type, class... ValidValues>
+struct option_t {
+    std::tuple<ValidValues...> values_;
+    Type Base::*placeholder;
+
+    constexpr bool process(std::string_view const& arg) const {
+        if (std::apply(is_any_of_h(arg), values_)) {
         }
-
-        out << " {" << std::endl;
-        out << "public:" << std::endl;
+        return true;
     }
-
-    out << "template<class OStream> OStream& " << params.function_name << "(OStream& " << params.result_name << ") ";
-    if (params.function_override)
-        out << "override ";
-    out << "{" << std::endl;
-}
-
-template<class OStream>
-void prepare_bottom(OStream& out, const templater_parameters& params) {
-    out << "return " << params.result_name << ";" << std::endl;
-    out << "}" << std::endl;
-
-    if (params.class_name) {
-        out << "};" << std::endl;
-    }
-
-    if (params.result_namespace) {
-        out << "}" << std::endl;
-    }
-}
-
-#include <cctype>
-bool is_valid_block_indicator(char ch) {
-    return ch == 'b' || ch == 'e' || ch == '!' || std::isspace(ch);
-}
-
-template<class IStream, class OStream>
-bool parse_template(IStream& input, OStream& out, const templater_parameters& params, parser_status& status) {
-    using traits_type = typename IStream::traits_type;
-    using char_type = typename IStream::char_type;
-    block_type_t block_type;
-    auto ch = input.get();
-
-    if (ch == traits_type::eof() || ch != '%') {
-        if (!input.eof())
-            input.unget();
-        return false;
-    }
-   
-    ch = input.get();
-    if (!is_valid_block_indicator(ch)) {
-        /* error */
-    }
-    if ((ch == 'b' && status != START) || (std::isspace(ch) && status == END) || (ch == '!' && status == END)) {
-        /* error */
-    }
+};
 
 int main(int argc, char** argv) {
     lzcoders::templater::templater_parameters params;
